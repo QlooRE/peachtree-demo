@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { PRESEEDED_ARTISTS, UNIVERSITY_MAP, resolveUniversity } from "@/lib/constants";
 import { QlooEntity } from "@/lib/qloo";
+import { trackedFetch } from "@/lib/api-stream";
 import { ArtistCard } from "@/components/ArtistCard";
 import { BrandCard } from "@/components/BrandCard";
 import { SectionLabel, SectionCaption, NotFound, SuccessBadge, Spinner, Select, Input, Button } from "@/components/ui";
@@ -26,14 +27,14 @@ export function UniversityPanel() {
     setLoading(true); setResult(null); setNotFound("");
     try {
       const locality = resolveUniversity(effectiveUniversity);
-      const searchRes = await fetch(`/api/search-artist?name=${encodeURIComponent(effectiveArtist)}`).then(r => r.json());
+      const searchRes = await trackedFetch<{ found: boolean; id?: string; name?: string }>(`/api/search-artist?name=${encodeURIComponent(effectiveArtist)}`);
       if (!searchRes.found) { setNotFound(effectiveArtist); setLoading(false); return; }
 
       const [simRes, brandRes] = await Promise.all([
-        fetch(`/api/similar-artists?entityId=${searchRes.id}&location=${encodeURIComponent(locality)}`).then(r => r.json()),
-        fetch(`/api/brand-affinities?entityId=${searchRes.id}&location=${encodeURIComponent(locality)}`).then(r => r.json()),
+        trackedFetch<{ entities: QlooEntity[] }>(`/api/similar-artists?entityId=${searchRes.id}&location=${encodeURIComponent(locality)}`),
+        trackedFetch<{ entities: QlooEntity[] }>(`/api/brand-affinities?entityId=${searchRes.id}&location=${encodeURIComponent(locality)}`),
       ]);
-      setResult({ canonicalName: searchRes.name, locality, similarArtists: simRes.entities ?? [], brands: brandRes.entities ?? [] });
+      setResult({ canonicalName: searchRes.name!, locality, similarArtists: simRes.entities ?? [], brands: brandRes.entities ?? [] });
     } finally { setLoading(false); }
   }
 

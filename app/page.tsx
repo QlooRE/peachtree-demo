@@ -3,6 +3,7 @@ import { useState } from "react";
 import { UniversityPanel } from "@/components/panels/UniversityPanel";
 import { ExperiencePanel } from "@/components/panels/ExperiencePanel";
 import { LineupPanel } from "@/components/panels/LineupPanel";
+import { ApiStream } from "@/components/ApiStream";
 
 const TABS = [
   { id: "university", label: "🎓  University Partnership" },
@@ -93,6 +94,9 @@ export default function Home() {
         {active === "experience" && <ExperiencePanel />}
         {active === "lineup"     && <LineupPanel />}
       </div>
+
+      {/* Qloo API Stream */}
+      <ApiStream />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { PRESEEDED_ARTISTS } from "@/lib/constants";
 import { QlooTag } from "@/lib/qloo";
+import { trackedFetch } from "@/lib/api-stream";
 import { TagGroup } from "@/components/TagGroup";
 import { SectionLabel, SectionCaption, NotFound, SuccessBadge, Spinner, Select, Input, Button, InsightBox } from "@/components/ui";
 
@@ -25,14 +26,14 @@ export function LineupPanel() {
     setLoading(true); setResult(null); setNotFound([]);
     try {
       const [resA, resB] = await Promise.all([
-        fetch(`/api/search-artist?name=${encodeURIComponent(effectiveA)}`).then(r => r.json()),
-        fetch(`/api/search-artist?name=${encodeURIComponent(effectiveB)}`).then(r => r.json()),
+        trackedFetch<{ found: boolean; id?: string; name?: string }>(`/api/search-artist?name=${encodeURIComponent(effectiveA)}`),
+        trackedFetch<{ found: boolean; id?: string; name?: string }>(`/api/search-artist?name=${encodeURIComponent(effectiveB)}`),
       ]);
       const missing = [!resA.found && effectiveA, !resB.found && effectiveB].filter(Boolean) as string[];
       if (missing.length) { setNotFound(missing); setLoading(false); return; }
 
-      const compareRes = await fetch(`/api/compare-artists?idA=${resA.id}&idB=${resB.id}`).then(r => r.json());
-      setResult({ nameA: resA.name, nameB: resB.name, ...compareRes });
+      const compareRes = await trackedFetch<{ shared: QlooTag[]; onlyA: QlooTag[]; onlyB: QlooTag[] }>(`/api/compare-artists?idA=${resA.id}&idB=${resB.id}`);
+      setResult({ nameA: resA.name!, nameB: resB.name!, ...compareRes });
     } finally { setLoading(false); }
   }
 

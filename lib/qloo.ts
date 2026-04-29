@@ -1,4 +1,32 @@
+import { AsyncLocalStorage } from "async_hooks";
+
 const QLOO_BASE = "https://api.qloo.com";
+
+export type QlooCall = {
+  ts: string;
+  path: string;
+  summary: Record<string, string>;
+  status: string;
+  latency_ms: number;
+};
+
+const callStore = new AsyncLocalStorage<QlooCall[]>();
+
+const SUMMARY_KEYS = [
+  "filter.type",
+  "signal.interests.entities",
+  "signal.location.query",
+  "a.signal.interests.entities",
+  "b.signal.interests.entities",
+  "query",
+  "take",
+];
+
+export async function withQlooTracking<T>(fn: () => Promise<T>): Promise<{ result: T; calls: QlooCall[] }> {
+  const calls: QlooCall[] = [];
+  const result = await callStore.run(calls, fn);
+  return { result, calls };
+}
 
 function getKey() {
   const key = process.env.QLOO_API_KEY;
@@ -9,12 +37,32 @@ function getKey() {
 async function qlooGet(path: string, params: Record<string, string>) {
   const url = new URL(`${QLOO_BASE}${path}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString(), {
-    headers: { "X-Api-Key": getKey() },
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) throw new Error(`Qloo ${path} → ${res.status}`);
-  return res.json();
+  const started = performance.now();
+  let status = "OK";
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { "X-Api-Key": getKey() },
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) {
+      status = `HTTP ${res.status}`;
+      throw new Error(`Qloo ${path} → ${res.status}`);
+    }
+    return await res.json();
+  } catch (e) {
+    if (status === "OK") status = "ERROR";
+    throw e;
+  } finally {
+    const summary: Record<string, string> = {};
+    for (const k of SUMMARY_KEYS) if (k in params) summary[k] = params[k];
+    callStore.getStore()?.push({
+      ts: new Date().toISOString().slice(11, 19),
+      path,
+      summary,
+      status,
+      latency_ms: Math.round(performance.now() - started),
+    });
+  }
 }
 
 function similarity(a: string, b: string): number {

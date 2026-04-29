@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { PRESEEDED_ARTISTS, UNIVERSITY_MAP, resolveUniversity } from "@/lib/constants";
 import { QlooEntity } from "@/lib/qloo";
+import { trackedFetch } from "@/lib/api-stream";
 import { BrandCard } from "@/components/BrandCard";
 import { SectionLabel, SectionCaption, NotFound, SuccessBadge, Spinner, Select, Input, Button } from "@/components/ui";
 
@@ -31,19 +32,19 @@ export function ExperiencePanel() {
     setLoading(true); setResult(null); setNotFound("");
     try {
       const locality = resolveUniversity(effectiveMarket);
-      const searchRes = await fetch(`/api/search-artist?name=${encodeURIComponent(effectiveArtist)}`).then(r => r.json());
+      const searchRes = await trackedFetch<{ found: boolean; id?: string; name?: string }>(`/api/search-artist?name=${encodeURIComponent(effectiveArtist)}`);
       if (!searchRes.found) { setNotFound(effectiveArtist); setLoading(false); return; }
 
-      const brandRes = await fetch(`/api/brand-affinities?entityId=${searchRes.id}&location=${encodeURIComponent(locality)}&take=12`).then(r => r.json());
+      const brandRes = await trackedFetch<{ entities: QlooEntity[] }>(`/api/brand-affinities?entityId=${searchRes.id}&location=${encodeURIComponent(locality)}&take=12`);
       const brands: QlooEntity[] = brandRes.entities ?? [];
 
-      const conceptRes = await fetch("/api/experience-concepts", {
+      const conceptRes = await trackedFetch<{ concepts?: string }>("/api/experience-concepts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ artistName: searchRes.name, location: locality, brands }),
-      }).then(r => r.json());
+      });
 
-      setResult({ canonicalName: searchRes.name, locality, brands, concepts: conceptRes.concepts ?? "" });
+      setResult({ canonicalName: searchRes.name!, locality, brands, concepts: conceptRes.concepts ?? "" });
     } finally { setLoading(false); }
   }
 
